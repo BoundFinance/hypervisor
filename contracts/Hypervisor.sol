@@ -100,6 +100,49 @@ contract Hypervisor is IUniswapV3MintCallback, ERC20Permit, ReentrancyGuard {
         deposit1Max = uint256(-1);
     }
 
+    function depositUSDC(uint256 usdcDepositAmount,
+        address to,
+        address from,
+        uint256[4] memory inMin
+    ) nonReentrant external returns (uint256 shares) {
+    
+    token0.safeTransferFrom(from, address(this), usdcDepositAmount);
+    
+    uint128 liquidity = getLiquidityForAmount0(sqrtPriceLower, sqrtPriceUpper, usdcDepositAmount);
+    (uint256 requiredUsdc, uint256 requiredWeth) = getAmountsForLiquidity(sqrtPriceCurrent, sqrtPriceLower, sqrtPriceUpper, liquidity);
+    
+    uint256 usdcToSwap = usdcDepositAmount - requiredUsdc; // This needs adjustment based on your liquidity calculation
+
+    swapUSDCForExactWETH(requiredWeth, usdcToSwap, address(this)); // Simplify the swap logic here
+
+    shares = deposit(requiredUsdc, requiredWethm to, from, inMin);
+    
+    return shares;
+    }
+
+    function swapUSDCForExactWETH(uint256 requiredWeth, uint256 maxUSDC, address recipient) internal {
+        // Calculate the minimum amount of WETH to accept, accounting for slippage
+        uint256 minWETH = (requiredWeth * 9995) / 10000; // Applying a slippage of 0.05%
+
+        // Set up the swap parameters
+        ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
+            tokenIn: address(token0),
+            tokenOut: address(token1),
+            fee: 3000, // Assuming a 0.3% pool fee tier
+            recipient: recipient,
+            deadline: block.timestamp,
+            amountOut: requiredWeth,
+            amountInMaximum: maxUSDC,
+            sqrtPriceLimitX96: 0 // No specific price limit
+        });
+
+        // Execute the swap
+        swapRouter.exactOutputSingle(params);
+    }
+
+
+    
+
     /// @notice Deposit tokens
     /// @param deposit0 Amount of token0 transfered from sender to Hypervisor
     /// @param deposit1 Amount of token1 transfered from sender to Hypervisor
